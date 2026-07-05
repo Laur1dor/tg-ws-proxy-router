@@ -1,0 +1,19 @@
+# Запуск на домашнем сервере (Linux). network_mode: host — контейнер слушает
+# порты прямо на хосте, поэтому смена портов в config.yml через панель
+# применяется без правки compose (нужен только restart).
+#
+# Docker Desktop (Windows/macOS) host-сеть не поддерживает — там замени блок
+# network_mode на проброс портов:  ports: ["1080:1080","1443:1443","1444:1444"]
+services:
+  tgws-proxy:
+    build: .
+    image: tgws-proxy:2.0
+    container_name: tgws-proxy
+    network_mode: host
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+    init: true
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Moscow
+      - TGWS_CONFIG=/app/config.yml

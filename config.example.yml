@@ -1,0 +1,83 @@
+# ============================================================================
+#  TG WS/SOCKS5 Proxy — конфиг
+# ============================================================================
+#  Проще всего настраивать через панель:   python -m proxy.menu   (или ./tgws.sh)
+#  Этот файл — справочник всех опций. Скопируй в config.yml и правь.
+#
+#    ВХОДЫ   — как Telegram подключается (SOCKS5 + два MTProto).
+#    ВЫХОДЫ  — куда трафик уходит (Cloudflare-WS / напрямую / зарубежный VPS).
+#    МАРШРУТЫ— какая категория трафика какой цепочкой выходов идёт (failover).
+#
+#  Категории: data (сообщения/медиа), calls (звонки), bot_api, other.
+# ============================================================================
+
+
+# ── ВХОДЫ ───────────────────────────────────────────────────────────────────
+listen:
+  # SOCKS5 — основной вход. ВОЗИТ И ДАННЫЕ, И ЗВОНКИ.
+  # В Telegram: Настройки → Продвинутые → Тип соединения → SOCKS5.
+  socks5:
+    enabled: true
+    host: 0.0.0.0
+    port: 1080
+    username: ""        # пусто = без авторизации (по умолчанию)
+    password: ""
+
+  # MTProto обычный — ссылка tg://proxy (dd). Звонки через MTProto не идут.
+  mtproto:
+    enabled: true
+    host: 0.0.0.0
+    port: 1443
+    secret: ""          # 32 hex; пусто = сгенерировать
+
+  # MTProto с Fake TLS — ссылка ee, маскировка под TLS-сайт. Отдельный порт.
+  mtproto_faketls:
+    enabled: true
+    host: 0.0.0.0
+    port: 1444
+    secret: ""
+    fake_tls_domain: "www.cloudflare.com"   # пресеты RU/зарубежные — в панели
+
+
+# ── ВЫХОДЫ ──────────────────────────────────────────────────────────────────
+exits:
+  cf_ws:   { type: cloudflare_ws }    # MTProto-данные через Cloudflare WebSocket
+  direct:  { type: direct }           # напрямую с этого сервера
+
+  # Зарубежный VPS как upstream-SOCKS5 (сюда уводим звонки, если рефлекторы режут).
+  # health_check: прокси сам следит за VPS и при падении уходит на следующий выход.
+  finland:
+    type: socks5
+    host: 1.2.3.4
+    port: 1080
+    username: ""
+    password: ""
+    health_check: true
+    health_interval: 30
+
+
+# ── МАРШРУТЫ (цепочка выходов с failover) ────────────────────────────────────
+routes:
+  data:    [cf_ws, direct]
+  calls:   [finland, direct]    # звонки: VPS, при его падении — напрямую
+  bot_api: [direct]
+  other:   [direct]
+#  Нет VPS и режут только данные:   calls: [direct]
+#  Полностью отключить звонки:      добавь {type: block} и calls: [block]
+
+
+# ── ТОНКАЯ НАСТРОЙКА ─────────────────────────────────────────────────────────
+advanced:
+  cfproxy_fallback: true
+  cfproxy_user_domain: []
+  cfproxy_worker_domain: []
+  pool_size: 4
+  buf_kb: 256
+  verbose: false
+  # Обход DPI: режет исходящий TLS ClientHello по SNI, чтобы провайдер не
+  # рубил соединение к Telegram по имени хоста. Включи на узлах за DPI
+  # (домашний сервер в РФ, русский VPS). На финском VPS не нужно.
+  tls_fragment: false
+  data_cidrs: []                # переопределить подсети данных (иначе встроенные)
+  call_cidrs: []                # переопределить подсети звонков
+  bot_api_ip: 149.154.167.220

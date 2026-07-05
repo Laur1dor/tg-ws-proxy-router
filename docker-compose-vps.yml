@@ -1,0 +1,37 @@
+# Вариант с WireGuard-выходом (L3): весь egress прокси уходит через зарубежный
+# VPS по туннелю. Альтернатива upstream-SOCKS5 в config.yml — пригодится, если
+# у тебя на VPS поднят WireGuard, а не SOCKS5.
+#
+# 1. Положи рядом wg0.conf (конфиг WireGuard-клиента к твоему VPS).
+# 2. docker compose -f docker-compose-vps.yml up -d --build
+#
+# В этом режиме в config.yml для звонков обычно достаточно: calls: [direct]
+# (весь трафик и так выходит через VPS), либо разделяй маршруты тоньше.
+services:
+  tgws-wg:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: tgws-wg
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      net.ipv4.conf.all.src_valid_mark: 1
+    volumes:
+      - ./wg0.conf:/config/wg_confs/wg0.conf:ro
+    ports:
+      - "1080:1080"
+      - "1443:1443"
+    restart: unless-stopped
+
+  tgws-proxy:
+    build: .
+    image: tgws-proxy:2.0
+    container_name: tgws-proxy
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+    init: true
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Moscow
+      - TGWS_CONFIG=/app/config.yml
+    network_mode: service:tgws-wg

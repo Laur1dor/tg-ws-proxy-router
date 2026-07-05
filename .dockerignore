@@ -1,0 +1,11 @@
+_orig/
+_cf/
+tests/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+config.yml
+wg0.conf
+docs/
+README.md

@@ -1,0 +1,23 @@
+# local config may contain VPS IP / passwords — ship config.example.yml instead
+config.yml
+wg0.conf
+
+# reference clones of upstream projects
+_orig/
+_cf/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# runtime / build artifacts — never ship logs or prebuilt archives
+*.log
+*.tar.gz
+
+# editor / assistant metadata
+.claude/
+.vscode/
+.idea/

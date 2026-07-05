@@ -1,0 +1,15 @@
+[Unit]
+Description=TG WS/SOCKS5 Proxy (Telegram via Cloudflare WS + SOCKS5)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_DIR__
+ExecStart=__APP_DIR__/.venv/bin/python -u -m proxy -c __APP_DIR__/config.yml
+Restart=always
+RestartSec=3
+# Лог идёт в journald: journalctl -u tgws -f
+
+[Install]
+WantedBy=multi-user.target

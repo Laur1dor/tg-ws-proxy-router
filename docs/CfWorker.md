@@ -1,124 +1,89 @@
-# Cloudflare Worker
+# Собственный Cloudflare Worker
 
-Альтернативный (полностью бесплатный, не нужно покупать домен в отличии от [CfProxy](./CfProxy.md)) способ проксирования.
+Схема: **Telegram клиента → ваш SOCKS5/MTProto-прокси → WSS Worker → Telegram**.
+Сообщения и медиа остаются зашифрованными MTProto. Worker видит адреса и
+объём соединений. Для этого пути не нужен собственный зарубежный VPS;
+доступность Cloudflare и лимиты аккаунта остаются внешней зависимостью.
+Звонки и Telegram Web этим TCP-мостом не обеспечиваются автоматически.
 
-Прокси возвращает доступ к тому, что раньше не загружалось (реакции, некоторые стикеры). Если на аккаунте без Premium с данным способом все еще не загружаются фото/видео, оставьте в блоке `DC → IP` только `4:149.154.167.220`
+## Где нужен обход блокировок
 
-##
+Cloudflare должен быть доступен **с хоста, на котором запущен TGWS**.
+При блокировках у его провайдера может понадобиться Zapret или другой
+рабочий путь. Встроенная `tls_fragment` разделяет ClientHello; она не
+гарантирует обход блокировки IP или ограничения объёма передачи.
+Не отключайте действующий Zapret ради проверки всей рабочей сети.
 
-1. **Добавьте в [zapret](https://github.com/Flowseal/zapret-discord-youtube/) или в любое другое ПО следующие домены:**
+Удалённому родственнику с MTProto-ссылкой нужен доступ к вашему домашнему
+прокси, а не напрямую к Worker. Поэтому собственный Zapret на его телефоне
+для участка TGWS → Worker не требуется. Но оператор может блокировать и
+входящее соединение к домашнему прокси; FakeTLS не гарантирует доступность.
+
+Cloudflare описывает ограничения российских провайдеров, в том числе
+передачу только первых ~16 КБ:
+https://developers.cloudflare.com/support/troubleshooting/general-troubleshooting/service-disruption/
+
+## Развёртывание
+
+1. В Cloudflare откройте Workers & Pages → Create → Hello World → Deploy.
+2. В Edit code вставьте [cloudflare-worker.mjs](../cloudflare-worker.mjs),
+   затем Deploy. Код основан на MIT-проекте AlexMelanFromRingo/tg-proxy.
+3. Скопируйте имя `your-worker.your-account.workers.dev` без `https://` и пути.
+4. В панели TGWS → Расширенные укажите это имя как Cloudflare Worker.
+   Эквивалентные настройки для домашнего прокси за NetShift:
+
+   ```yaml
+   advanced:
+     cfproxy_worker_domain: [your-worker.your-account.workers.dev]
+     cfproxy_fallback: true
+     skip_front: true
+     pool_size: 0
+     tls_fragment: false
+   ```
+
+   Сохраните остальные поля своего конфига. `skip_front` предотвращает
+   попытки к Telegram IP, которые роутер может отправить обратно в TGWS.
+   `tls_fragment: false` подходит, когда доступ обеспечивает роутер;
+   необходимость фрагментации на отдельном сервере проверяется отдельно.
+5. Перезапустите только службу TGWS. Проверьте подключение, загрузку нового
+   медиа и отправку файла, а не только открытие WebSocket/HTTP 101.
+
+SOCKS-путь использует необязательный Telegram front, затем настроенные
+Workers, затем публичный CF-пул. При `skip_front: true` Worker идёт первым.
+MTProto-мост также предпочитает настроенный Worker публичному CF-пулу.
+
+Менять SSL/TLS доменов с Full (strict) на Flexible не нужно. TGWS проверяет
+цепочку сертификата и имя Worker; Worker открывает TCP-сокет к Telegram.
+DNS-зоны и обычные сайты в аккаунте для этой настройки менять не требуется.
+
+## Ограничения и безопасность
+
+Реле разрешает только канонические IPv4 из Telegram-диапазонов и TCP/443.
+Посторонние назначения отклоняются. `binaryType = "arraybuffer"` задан до
+`accept()`, чтобы новые compatibility dates не превращали сообщения в Blob.
+Передача к TCP сериализована, порядок сообщений сохраняется.
+
+Worker публичный **без аутентификации**: знающий URL может расходовать ваш
+лимит аккаунта, хотя использовать его как универсальный прокси нельзя.
+Несколько TGWS с одним Worker делят квоту. Проверяйте актуальные лимиты
+своего плана в панели Cloudflare. Это не гарантия постоянной доступности.
+
+## Обновление существующей установки
+
+Не запускайте установщик и не заменяйте свой `config.yml` примером.
+Сохраните копии каталога `proxy`, конфига и systemd unit, обновите код,
+выполните офлайн-проверки и перезапустите только TGWS. При сбое верните
+сохранённый код/конфиг и перезапустите эту службу. Не возвращайте старый
+`raw_websocket.py`, если он отключал проверку TLS-сертификатов.
+
+Проверки из корня репозитория:
+
+```sh
+python -m unittest discover -s tests -p 'test_*.py'
+python tests/smoke_socks5.py
+python tests/smoke_tls_frag.py
+node tests/worker.mjs
 ```
-cloudflare.com
-cloudflare.dev
-workers.dev
-```
-2. Создайте аккаунт в [Cloudflare](https://dash.cloudflare.com/) (или войдите в существующий)
-	* **После создания аккаунта подтвердите почту с помощью письма, который вам пришел на email**
-3. Слева в панели выберите `Compute` → `Workers & Pages`  
-   <img width="250" height="768" alt="image" src="https://github.com/user-attachments/assets/d81e3522-045a-4e65-9c2e-5545b7ad409a" />
 
-4. Нажмите сверху справа кнопку **`Create application`** → `Start with Hello World!` → `Deploy`  
-   <img width="1406" height="193" alt="image" src="https://github.com/user-attachments/assets/7ac65944-8761-42a6-ab6d-ba5f9080c883" />  
-   <img width="586" height="379" alt="image" src="https://github.com/user-attachments/assets/ff901439-c2a1-4867-95de-e11b82a37044" />  
-   <img width="624" height="694" alt="image" src="https://github.com/user-attachments/assets/bb68d49a-166d-42a0-8fe2-bd2b16c0d066" />
-
-5. Сверху справа нажмите кнопку **`Edit code`**, замените код слева на тот, [что находится внизу этой страницы](./CfWorker.md#код-workerа)
-    * Если у вас не загружается код, то вы не выполнили первый пункт  
-    <img width="911" height="117" alt="image" src="https://github.com/user-attachments/assets/6bcdf839-d776-47e9-9d18-ba0efdf53244" />  
-	<img width="1027" height="512" alt="image" src="https://github.com/user-attachments/assets/daf131ed-82d5-40f0-a7eb-daeb598bea40" />
-
-
-6. Нажмите сверху справа кнопку **`Deploy`**  
-   <img width="415" height="138" alt="image" src="https://github.com/user-attachments/assets/58d8f83e-d8b5-40cf-a30f-741d7311047b" />
-
-7. Скопируйте домен из поля справа и укажите его в настройках **Cloudflare Worker** (или через аргумент `--cfproxy-worker-domain`)
-    * Пример домена: `random-symbols-1234.username.workers.dev`  
-   <img width="414" height="182" alt="image" src="https://github.com/user-attachments/assets/4fb0b111-8026-4d17-b993-6c70ec37f1f5" />
-
-
-### Код Worker'а
-```javascript
-import { connect } from "cloudflare:sockets";
-
-function toBytes(data) {
-	if (data instanceof ArrayBuffer) {
-		return new Uint8Array(data);
-	}
-	if (typeof data === "string") {
-		return new TextEncoder().encode(data);
-	}
-	if (data && typeof data.arrayBuffer === "function") {
-		return data.arrayBuffer().then((ab) => new Uint8Array(ab));
-	}
-	return new Uint8Array();
-}
-
-export default {
-	async fetch(request) {
-		if ((request.headers.get("Upgrade") || "").toLowerCase() !== "websocket") {
-			return new Response("Expected websocket", { status: 426 });
-		}
-
-		const url = new URL(request.url);
-		if (url.pathname !== "/apiws") {
-			return new Response("Not found", { status: 404 });
-		}
-
-		const dst = url.searchParams.get("dst");
-		const pair = new WebSocketPair();
-		const client = pair[0];
-		const server = pair[1];
-		server.accept();
-
-		const socket = connect({ hostname: dst, port: 443 });
-		const tcpReader = socket.readable.getReader();
-		const tcpWriter = socket.writable.getWriter();
-
-		server.addEventListener("message", async (event) => {
-			try {
-				await tcpWriter.write(await toBytes(event.data));
-			} catch {
-				try {
-					server.close(1011, "tcp write failed");
-				} catch {}
-			}
-		});
-
-		server.addEventListener("close", async () => {
-			try {
-				await tcpWriter.close();
-			} catch {}
-			try {
-				socket.close();
-			} catch {}
-		});
-
-		(async () => {
-			try {
-				while (true) {
-					const { value, done } = await tcpReader.read();
-					if (done) {
-						break;
-					}
-					if (value) {
-						server.send(value);
-					}
-				}
-			} catch {
-			} finally {
-				try {
-					server.close();
-				} catch {}
-				try {
-					tcpReader.releaseLock();
-				} catch {}
-				try {
-					socket.close();
-				} catch {}
-			}
-		})();
-
-		return new Response(null, { status: 101, webSocket: client });
-	},
-};
-```
+Тесты офлайн не доказывают доступность с конкретного провайдера и не
+измеряют скорость авторизованных файлов Telegram.

@@ -113,12 +113,10 @@ async def open_cloudflare_ws(dc: int, is_media: bool,
                              timeout: float = 10.0) -> Optional[RawWebSocket]:
     """Open a WS tunnel to the DC.
 
-    Primary path (as in the original tg-ws-proxy): WS-over-TLS to Telegram's own
-    web endpoints (kwsN.web.telegram.org) via a reachable front IP
-    (149.154.167.220). That IP is NOT IP-banned in RU — the traffic looks like
-    normal HTTPS; any DPI reset on the TLS handshake is meant to be defeated by
-    the upstream DPI-bypass (e.g. zapret on the router). CF-proxied domains and
-    CF Workers are fallbacks for when the front is unavailable.
+    Try the optional Telegram web front, configured Workers, then the public
+    CF domain pool. Availability of each path depends on the proxy host's ISP.
+    Set skip_front behind a Telegram-redirecting router to avoid self-capture;
+    a configured Worker then becomes the first path.
     """
     # 1) web.telegram.org fronting (primary path where Telegram IPs are
     #    reachable). Skipped for a cooldown on networks where it just fails.
@@ -149,18 +147,7 @@ async def open_cloudflare_ws(dc: int, is_media: bool,
         log.debug("DC%d front unreachable -> skipping it for %ds",
                   dc, int(_FRONT_COOLDOWN))
 
-    # 2) Cloudflare-proxied domains (user-supplied or community defaults).
-    if proxy_config.fallback_cfproxy:
-        for base_domain in balancer.get_domains_for_dc(dc):
-            domain = f'kws{dc if dc != 203 else 2}.{base_domain}'
-            try:
-                ws = await RawWebSocket.connect(domain, domain, timeout=timeout)
-                balancer.update_domain_for_dc(dc, base_domain)
-                return ws
-            except Exception:
-                pass
-
-    # 3) Cloudflare Worker domains.
+    # 2) Cloudflare Worker domains.
     fallback_dst = DC_DEFAULT_IPS.get(dc)
     if fallback_dst and proxy_config.cfproxy_worker_domains:
         from urllib.parse import urlencode
@@ -169,6 +156,17 @@ async def open_cloudflare_ws(dc: int, is_media: bool,
             try:
                 return await RawWebSocket.connect(worker_domain, worker_domain,
                                                   timeout=timeout, path=path)
+            except Exception:
+                pass
+
+    # 3) Cloudflare-proxied domains (user-supplied or community defaults).
+    if proxy_config.fallback_cfproxy:
+        for base_domain in balancer.get_domains_for_dc(dc):
+            domain = f'kws{dc if dc != 203 else 2}.{base_domain}'
+            try:
+                ws = await RawWebSocket.connect(domain, domain, timeout=timeout)
+                balancer.update_domain_for_dc(dc, base_domain)
+                return ws
             except Exception:
                 pass
 

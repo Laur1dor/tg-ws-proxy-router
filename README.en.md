@@ -1,5 +1,11 @@
 # TG WS/SOCKS5 Proxy — with routing and calls
 
+2026-11-02: configured Workers now precede the public CF pool on the SOCKS
+path, and TLS certificate/hostname verification is enabled. The repository
+includes a Telegram-only [Worker](./cloudflare-worker.mjs), offline tests and
+[deployment notes](./docs/CfWorker.md). Cloudflare must be reachable from the
+TGWS host; remote MTProto clients do not connect to Cloudflare themselves.
+
 **Fork of [Flowseal/tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy)**
 (built on top of upstream at commit
 [`ed46ecc`](https://github.com/Flowseal/tg-ws-proxy/commit/ed46ecce5a21f3bc5cb232e33809d84179b4b4c1),

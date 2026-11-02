@@ -11,4 +11,8 @@ if [ -x "./.venv/bin/python" ]; then
 else
   PY="$(command -v python3 || command -v python)"
 fi
+if [ "${1:-}" = web ]; then
+  shift
+  exec "$PY" -m proxy.webui "$@"
+fi
 exec "$PY" -m proxy.menu "$@"

@@ -170,17 +170,32 @@ def _to_dict():
             'buf_kb': pc.buffer_size // 1024,
             'verbose': pc.verbose,
             'tls_fragment': pc.tls_fragment,
+            'skip_front': pc.skip_front,
         },
     }
 
 
 def save(path):
     import yaml
+    # Keep options managed by the web UI or added by newer versions.
+    current = {}
+    if os.path.isfile(path):
+        with open(path, encoding='utf-8') as existing:
+            current = yaml.safe_load(existing) or {}
+    updated = _to_dict()
+    for group in ('advanced',):
+        updated[group] = {**(current.get(group) or {}), **updated[group]}
+    for group in ('listen', 'exits'):
+        for name, value in updated[group].items():
+            previous = (current.get(group) or {}).get(name)
+            if isinstance(previous, dict):
+                updated[group][name] = {**previous, **value}
+    current.update(updated)
     header = ("# Сгенерировано панелью (python -m proxy.menu).\n"
               "# Все опции с описанием — в config.example.yml.\n\n")
     with open(path, 'w', encoding='utf-8') as f:
         f.write(header)
-        yaml.safe_dump(_to_dict(), f, allow_unicode=True, sort_keys=False,
+        yaml.safe_dump(current, f, allow_unicode=True, sort_keys=False,
                        default_flow_style=False)
 
 

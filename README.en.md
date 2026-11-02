@@ -1,5 +1,9 @@
 # TG WS/SOCKS5 Proxy — with routing and calls
 
+An optional [LAN-only HTTPS web UI](./docs/WebUI.md) adds admin login,
+listener/Worker/route settings, connection links, logs and configuration
+rollback. The existing TUI remains available. Web UI installation is explicit.
+
 2026-11-02: configured Workers now precede the public CF pool on the SOCKS
 path, and TLS certificate/hostname verification is enabled. The repository
 includes a Telegram-only [Worker](./cloudflare-worker.mjs), offline tests and

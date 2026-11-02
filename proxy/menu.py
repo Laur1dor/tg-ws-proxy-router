@@ -650,6 +650,7 @@ def main_menu(path):
         print("   5) Звонки и выходы (VPS)")
         print("   6) Служба (старт / рестарт / логи)")
         print("   7) Расширенные")
+        print("   8) Веб-панель (адрес / пароль / служба / порт)")
         print("   0) Выход")
         ch = ask("Выбор", '0')
         if ch == '1':
@@ -666,6 +667,9 @@ def main_menu(path):
             menu_service(path)
         elif ch == '7':
             menu_advanced(path)
+        elif ch == '8':
+            from .webmenu import main as web_menu
+            web_menu()
         elif ch == '0':
             return
 

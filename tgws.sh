@@ -13,6 +13,9 @@ else
 fi
 if [ "${1:-}" = web ]; then
   shift
+  if [ "$#" -eq 0 ]; then
+    exec "$PY" -m proxy.webmenu
+  fi
   exec "$PY" -m proxy.webui "$@"
 fi
 exec "$PY" -m proxy.menu "$@"

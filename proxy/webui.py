@@ -387,12 +387,16 @@ class Handler(BaseHTTPRequestHandler):
         self.dispatch(True)
 
 
-def reset_password(state):
-    auth = dict(username='admin', salt=secrets.token_hex(16))
-    password = secrets.token_urlsafe(18)
+def reset_password(state, username=None, password=None):
+    current = json.loads((state/'auth.json').read_text()) if (state/'auth.json').exists() else {}
+    username = username or current.get('username', 'admin')
+    password = password or secrets.token_urlsafe(18)
+    if not re.fullmatch(r'[A-Za-z0-9_.-]{1,64}', username) or not 12 <= len(password) <= 256:
+        raise ValueError('Логин: 1–64 латинских символа; пароль: 12–256 символов')
+    auth = dict(username=username, salt=secrets.token_hex(16))
     auth['hash'] = password_hash(password, auth['salt'])
     atomic_write(state / 'auth.json', json.dumps(auth).encode())
-    print('Login: admin\nPassword: ' + password)
+    print('Login: ' + username + '\nPassword: ' + password)
 
 
 def main():
